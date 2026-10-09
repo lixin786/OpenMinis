@@ -39,6 +39,7 @@ import androidx.compose.ui.unit.dp
 import com.openminis.app.browser.BrowserFingerprintProfile
 import com.openminis.app.browser.BrowserFingerprintRegistry
 import com.openminis.app.browser.BrowserTabPool
+import com.openminis.app.ui.components.MinisTextButton
 
 /**
  * [T-android-browser-fingerprint] The "Fingerprint accounts" section of the
