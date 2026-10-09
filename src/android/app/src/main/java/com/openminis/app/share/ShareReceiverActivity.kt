@@ -376,7 +376,7 @@ class ShareReceiverActivity : ComponentActivity() {
     }
 
     private fun mainActivityIntent(flags: Int): Intent =
-        Intent(this, Class.forName("com.openminis.app.MainActivity")).apply {
+        Intent(this, com.openminis.app.MainActivity::class.java).apply {
             addFlags(flags)
             putExtra("shared_content", true)
         }

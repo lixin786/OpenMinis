@@ -1,6 +1,5 @@
 name: Build Android Debug APK
 
-# 手动触发，不自动跑
 on:
   workflow_dispatch:
 
@@ -37,8 +36,6 @@ jobs:
           go install golang.org/x/mobile/cmd/gobind@latest
           echo "$(go env GOPATH)/bin" >> $GITHUB_PATH
 
-      # 不用 android-actions/setup-android（v3 已失效：sdkmanager tools 包名不存在）。
-      # 手动装 cmdline-tools，自带最新 sdkmanager。
       - name: Install Android SDK (cmdline-tools + packages)
         run: |
           set -e
@@ -59,6 +56,20 @@ jobs:
           yes | sdkmanager --licenses || true
           sdkmanager "platform-tools" "platforms;android-36" "build-tools;36.0.0" "ndk;28.2.13676358" "cmake;3.22.1"
           echo "ANDROID_NDK_HOME=$SDK_ROOT/ndk/28.2.13676358" >> $GITHUB_ENV
+
+      # 固定签名 keystore（base64 存 secret；没有该 secret 时回退 debug 签名）
+      - name: Restore signing keystore
+        run: |
+          if [ -n "${{ secrets.MINISFP_KEYSTORE_B64 }}" ]; then
+            echo "${{ secrets.MINISFP_KEYSTORE_B64 }}" | base64 -d > $HOME/minisfp.keystore
+            echo "keystore restored ($(wc -c < $HOME/minisfp.keystore) bytes)"
+          else
+            echo "no MINISFP_KEYSTORE_B64 secret; generating a throwaway one"
+            keytool -genkeypair -v -keystore $HOME/minisfp.keystore -alias minisfp \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass minisfp123 -keypass minisfp123 \
+              -dname "CN=Minis FP, O=MinisFP, C=CN"
+          fi
 
       - name: Cache Gradle
         uses: actions/cache@v4
@@ -87,14 +98,21 @@ jobs:
           mkdir -p src/android/app/libs
           cp deps/build/rclone/rclone.aar src/android/app/libs/
 
-      - name: Build debug APK
+      - name: Build perf APK (pinned keystore, v1+v2, unminified)
         working-directory: src/android
-        run: ./gradlew :app:assembleDebug --no-daemon --stacktrace
+        run: ./gradlew :app:assemblePerf --no-daemon --stacktrace
+
+      - name: Verify signing schemes
+        working-directory: src/android
+        run: |
+          APK=app/build/outputs/apk/perf/app-perf.apk
+          ls -l "$APK"
+          unzip -l "$APK" | grep -iE "META-INF/.*\.(RSA|SF|MF)" || echo "no v1 (META-INF) entries"
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug-apk
-          path: src/android/app/build/outputs/apk/debug/app-debug.apk
+          name: app-perf-apk
+          path: src/android/app/build/outputs/apk/perf/app-perf.apk
           retention-days: 90
           if-no-files-found: error

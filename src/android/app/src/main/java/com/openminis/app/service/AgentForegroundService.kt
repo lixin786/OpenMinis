@@ -1071,7 +1071,7 @@ class AgentForegroundService : Service() {
         // the task ended rather than continuing to tick.
         val finishedWallMs = elapsedRealtimeToWallClock(endMs, nowElapsedMs, nowWallMs)
 
-        val mainIntent = Intent(this, Class.forName("com.openminis.app.MainActivity")).apply {
+        val mainIntent = Intent(this, com.openminis.app.MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP
         }
         val pendingIntent = PendingIntent.getActivity(

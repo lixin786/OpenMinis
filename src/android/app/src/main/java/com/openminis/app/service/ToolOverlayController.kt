@@ -1378,7 +1378,7 @@ class ToolOverlayController(private val context: Context) {
             val sid = pendingSessionId
             val launchIntent = Intent(
                 context,
-                Class.forName("com.openminis.app.MainActivity"),
+                com.openminis.app.MainActivity::class.java,
             ).apply {
                 // [T-android-overlay-reply-status-34599] When we have a
                 // tracked session, route the tap through the existing

@@ -33,7 +33,7 @@ android {
     compileSdk = 36
 
     defaultConfig {
-        applicationId = "com.openminis.app.fp"
+        applicationId = "com.openminis.app"
         minSdk = 26
         targetSdk = 35
         versionCode = 28
@@ -75,6 +75,18 @@ android {
         }
     }
 
+    signingConfigs {
+        create("minisfp") {
+            // [T-fp-coexist] 固定 keystore，重装无需卸载；同时产出 v1+v2 签名
+            storeFile = file(System.getenv("HOME") + "/minisfp.keystore")
+            storePassword = "minisfp123"
+            keyAlias = "minisfp"
+            keyPassword = "minisfp123"
+            enableV1Signing = true
+            enableV2Signing = true
+        }
+    }
+
     buildTypes {
         getByName("debug") {
             buildConfigField("boolean", "DEV_TOOLS", "true")
@@ -94,7 +106,7 @@ android {
             isProfileable = true
             matchingFallbacks += listOf("debug")
             buildConfigField("boolean", "DEV_TOOLS", "true")
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("minisfp")
         }
         release {
             // [OpenMinis#363] Produce native-debug-symbols.zip alongside the
@@ -116,7 +128,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("minisfp")
         }
     }
 
