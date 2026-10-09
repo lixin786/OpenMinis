@@ -178,6 +178,11 @@ class BrowserTabPool(private val context: Context) : BrowserTabPoolRegistry.Regi
         set(value) { _userAgentProfile.value = value }
     private var customUserAgentString: String? = null
 
+    // [T-android-browser-fingerprint] 当前浏览器账号的指纹档案 id（null = 不启用）
+    private var fingerprintId: String? = null
+
+    fun setFingerprintAccount(id: String?) { fingerprintId = id }
+
     private var sessionId: String? = null
     private val savedURLs = mutableMapOf<Int, String>()
 
@@ -1184,6 +1189,12 @@ class BrowserTabPool(private val context: Context) : BrowserTabPoolRegistry.Regi
 
         val id = nextTabId++
         val webView = WebView(context)
+        // [T-android-browser-fingerprint] 当前账号的指纹档案（null = 不启用伪装）
+        val fpProfile = fingerprintId?.let { fid ->
+            context.applicationContext?.let { ctx ->
+                BrowserFingerprintRegistry.getOrCreate(ctx, fid, fid)
+            }
+        }
         // [T-android-minis-url-session-scope] Hand the manager a LIVE reader of
         // this pool's session id (set later via setSession) plus a context, so
         // `minis://workspace/...` resolves against this chat's sandbox instead
@@ -1193,8 +1204,12 @@ class BrowserTabPool(private val context: Context) : BrowserTabPoolRegistry.Regi
             userAgentProfile,
             sessionIdProvider = { sessionId },
             appContext = context.applicationContext,
+            fingerprintProfile = fpProfile,        // [T-android-browser-fingerprint] 新增
         )
-        if (userAgentProfile == UserAgentProfile.CUSTOM && !customUserAgentString.isNullOrEmpty()) {
+        if (fpProfile != null) {
+            // 指纹档案的 UA 与 UserAgentProfile 会打架：启用指纹时用档案的 UA
+            manager.setUserAgent(UserAgentProfile.CUSTOM, fpProfile.userAgent)
+        } else if (userAgentProfile == UserAgentProfile.CUSTOM && !customUserAgentString.isNullOrEmpty()) {
             manager.setUserAgent(userAgentProfile, customUserAgentString)
         }
         // Honor the resolved viewport (session override > global custom > UA default).

@@ -3,6 +3,7 @@ package com.openminis.app.browser
 import android.annotation.SuppressLint
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.Message
@@ -16,6 +17,8 @@ import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import androidx.annotation.RequiresApi
+import androidx.webkit.WebViewCompat
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -47,6 +50,8 @@ class BrowserUseManager(
     private val sessionIdProvider: () -> String? = { null },
     /** App context for the session-scoped path resolver. Null disables it. */
     private val appContext: android.content.Context? = null,
+    // [T-android-browser-fingerprint] 该 tab 的指纹档案（null = 不启用伪装，保持原行为）
+    private val fingerprintProfile: BrowserFingerprintProfile? = null,
 ) {
     companion object {
         private const val TAG = "BrowserUseManager"
@@ -248,6 +253,10 @@ class BrowserUseManager(
 
     init {
         configureWebView(webView, profile)
+        // [T-android-browser-fingerprint] 在文档开始执行前注入指纹脚本
+        fingerprintProfile?.let { fp ->
+            webView.applyFingerprintAtDocumentStart(fp)
+        }
         webView.addJavascriptInterface(jsBridge, "__minis__")
         setupWebViewClient()
         setupWebChromeClient()
@@ -2087,4 +2096,18 @@ class BrowserUseManager(
         return BrowserActionResult(text = text)
     }
 
+}
+
+/**
+ * [T-android-browser-fingerprint] 用 androidx.webkit 的 addDocumentStartJavaScript
+ * 在页面脚本前注入指纹。这是"文档开始"级，页面自己的脚本读 navigator/canvas 前就已生效。
+ */
+@RequiresApi(Build.VERSION_CODES.O)   // minSdk 26 已满足
+private fun WebView.applyFingerprintAtDocumentStart(fp: BrowserFingerprintProfile) {
+    runCatching {
+        val js = BrowserFingerprintInjector.script(fp)
+        WebViewCompat.addDocumentStartJavaScript(this, js, setOf("*"))
+    }.onFailure {
+        Log.w("BrowserFingerprint", "addDocumentStartJavaScript failed: ${it.message}")
+    }
 }
