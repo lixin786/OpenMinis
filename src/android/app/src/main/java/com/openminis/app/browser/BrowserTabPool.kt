@@ -63,6 +63,9 @@ class BrowserTabPool(private val context: Context) : BrowserTabPoolRegistry.Regi
         /** Global custom viewport height SharedPreferences key (0 = use UA default). */
         const val PREF_GLOBAL_VIEWPORT_HEIGHT = "browser_custom_viewport_height"
 
+        /** [T-android-browser-fingerprint] Selected fingerprint account id. */
+        const val PREF_FINGERPRINT_ID = "browser_fingerprint_id"
+
         /**
          * [T-browser-use-per-tab-serial-android] Max time a browser_use call
          * waits to acquire the per-tab-id serial lock before giving up. This is
@@ -179,9 +182,37 @@ class BrowserTabPool(private val context: Context) : BrowserTabPoolRegistry.Regi
     private var customUserAgentString: String? = null
 
     // [T-android-browser-fingerprint] 当前浏览器账号的指纹档案 id（null = 不启用）
-    private var fingerprintId: String? = null
+    private val _fingerprintId = MutableStateFlow<String?>(null)
+    val currentFingerprintId: StateFlow<String?> = _fingerprintId.asStateFlow()
+    private var fingerprintId: String?
+        get() = _fingerprintId.value
+        set(value) { _fingerprintId.value = value }
 
-    fun setFingerprintAccount(id: String?) { fingerprintId = id }
+    /**
+     * [T-android-browser-fingerprint] Select the fingerprint identity for
+     * newly created tabs. Pass null to disable (original behaviour).
+     *
+     * Existing tabs keep the identity they were created with — that is
+     * deliberate: swapping the fingerprint of a live tab mid-session would
+     * itself be a detectable event. Close and reopen tabs to apply.
+     * Persisted so the choice survives a process restart.
+     */
+    fun setFingerprintAccount(id: String?) {
+        _fingerprintId.value = id
+        runCatching {
+            context.getSharedPreferences("browser_prefs", Context.MODE_PRIVATE)
+                .edit().putString(PREF_FINGERPRINT_ID, id).apply()
+        }
+    }
+
+    /** Restore the persisted selection (called from init). */
+    private fun restoreFingerprintId() {
+        runCatching {
+            val saved = context.getSharedPreferences("browser_prefs", Context.MODE_PRIVATE)
+                .getString(PREF_FINGERPRINT_ID, null)
+            if (saved != null) _fingerprintId.value = saved
+        }
+    }
 
     private var sessionId: String? = null
     private val savedURLs = mutableMapOf<Int, String>()
@@ -332,6 +363,9 @@ class BrowserTabPool(private val context: Context) : BrowserTabPoolRegistry.Regi
             }
         }
         customUserAgentString = prefs.getString("custom_user_agent", null)?.ifEmpty { null }
+
+        // [T-android-browser-fingerprint] Restore the selected fingerprint account.
+        restoreFingerprintId()
 
         // Restore global custom viewport (0 = unset → fall back to UA profile).
         // Mirrors iOS `BrowserCustomViewport{Width,Height}` UserDefaults keys.

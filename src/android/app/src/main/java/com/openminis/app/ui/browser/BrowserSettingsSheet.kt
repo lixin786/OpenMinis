@@ -331,6 +331,13 @@ fun BrowserSettingsSheet(
             HorizontalDivider()
             Spacer(Modifier.height(16.dp))
 
+            // ── Fingerprint accounts  [T-android-browser-fingerprint] ──
+            FingerprintAccountsSection(tabPool)
+
+            Spacer(Modifier.height(20.dp))
+            HorizontalDivider()
+            Spacer(Modifier.height(16.dp))
+
             // ── Cookies & Website Data ──
             Text(
                 stringResource(R.string.browser_settings_cookies_title),
