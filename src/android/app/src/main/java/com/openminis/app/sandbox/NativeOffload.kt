@@ -3,6 +3,7 @@ package com.openminis.app.sandbox
 import android.net.LocalServerSocket
 import android.net.LocalSocket
 import android.util.Log
+import com.openminis.app.BuildConfig
 import java.io.DataInputStream
 import java.io.DataOutputStream
 import java.io.File
@@ -52,7 +53,13 @@ fun interface NativeOffloadHandler {
 
 object NativeOffloadServer {
     private const val TAG = "NativeOffloadServer"
-    private const val SOCKET_NAME = "native-offload"
+    // Abstract sockets are device-global, not per-package: a fixed name collides
+    // head-on with any OTHER build of this app installed side by side (official +
+    // fp/coexist builds). The first process to start keeps the name for its whole
+    // lifetime, so the second one gets EADDRINUSE on every bind attempt and dies in
+    // MinisApp.onCreate - a permanent restart loop on the splash screen. Scope the
+    // name to this build's applicationId so every build gets its own socket.
+    private val SOCKET_NAME = BuildConfig.APPLICATION_ID + ".native-offload"
     private const val MAGIC_REQ = 0x46464F4E  // 'N' 'O' 'F' 'F' little-endian
     private const val MAGIC_RSP = 0x52464F4E  // 'N' 'O' 'F' 'R'
     private const val VERSION = 1
@@ -72,7 +79,7 @@ object NativeOffloadServer {
     /** Run the opportunistic sweep every N replies, not on every single one. */
     private const val SWEEP_EVERY_N_REPLIES = 50L
 
-    const val socketName: String = SOCKET_NAME
+    val socketName: String = SOCKET_NAME
 
     private val handlers = ConcurrentHashMap<String, NativeOffloadHandler>()
     private val counter = AtomicLong(0)
