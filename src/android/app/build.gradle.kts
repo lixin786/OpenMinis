@@ -227,7 +227,10 @@ val stageDebugSkillAssets by tasks.registering(Exec::class) {
     if (skillDir.isDirectory) inputs.dir(skillDir)
     if (script.isFile) inputs.file(script)
     outputs.dir(layout.projectDirectory.dir("src/debug/assets/debug-skill"))
-    commandLine("bash", script.absolutePath)
+    // Windows resolves a bare "bash" to System32ash.exe (WSL) ahead of PATH, which
+    // fails on hosts where WSL is disabled. Allow an explicit BASH_EXE override;
+    // Linux/CI keep the plain lookup.
+    commandLine(System.getenv("BASH_EXE") ?: "bash", script.absolutePath)
 }
 tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") && (it.name.contains("Debug") || it.name.contains("Perf")) }
     .configureEach { dependsOn(stageDebugSkillAssets) }

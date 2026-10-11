@@ -32,10 +32,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.openminis.app.R
 import com.openminis.app.browser.BrowserFingerprintProfile
 import com.openminis.app.browser.BrowserFingerprintRegistry
 import com.openminis.app.browser.BrowserTabPool
@@ -71,11 +73,10 @@ fun FingerprintAccountsSection(tabPool: BrowserTabPool) {
     var showAdd by remember { mutableStateOf(false) }
     var newId by remember { mutableStateOf("") }
 
-    Text("Fingerprint accounts", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
+    Text(stringResource(R.string.browser_settings_fingerprint_title), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.SemiBold)
     Spacer(Modifier.height(4.dp))
     Text(
-        "Give each account its own browser identity (canvas, WebGL, UA, screen, timezone). " +
-            "New tabs use the selected account. Note: cookies and network IP are NOT isolated here.",
+        stringResource(R.string.browser_settings_fingerprint_desc),
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
@@ -83,7 +84,7 @@ fun FingerprintAccountsSection(tabPool: BrowserTabPool) {
 
     // "Off" row
     FingerprintRow(
-        label = "Off (default)",
+        label = stringResource(R.string.browser_settings_fingerprint_off),
         selected = currentId == null,
         onClick = { tabPool.setFingerprintAccount(null) },
     )
@@ -105,27 +106,26 @@ fun FingerprintAccountsSection(tabPool: BrowserTabPool) {
     Spacer(Modifier.height(8.dp))
     Row(verticalAlignment = Alignment.CenterVertically) {
         IconButton(onClick = { showAdd = true }) {
-            Icon(Icons.Filled.Add, contentDescription = "Add account")
+            Icon(Icons.Filled.Add, contentDescription = stringResource(R.string.browser_settings_fingerprint_add))
         }
-        Text("Add account", style = MaterialTheme.typography.bodyMedium)
+        Text(stringResource(R.string.browser_settings_fingerprint_add), style = MaterialTheme.typography.bodyMedium)
     }
 
     if (showAdd) {
         AlertDialog(
             onDismissRequest = { showAdd = false },
-            title = { Text("New fingerprint account") },
+            title = { Text(stringResource(R.string.browser_settings_fingerprint_new_title)) },
             text = {
                 Column {
                     Text(
-                        "A stable identity is generated from this name. Use the same name to " +
-                            "get the same device back later.",
+                        stringResource(R.string.browser_settings_fingerprint_new_desc),
                         style = MaterialTheme.typography.bodySmall,
                     )
                     Spacer(Modifier.height(8.dp))
                     OutlinedTextField(
                         value = newId,
                         onValueChange = { newId = it.filter { c -> c.isLetterOrDigit() || c == '-' || c == '_' }.take(32) },
-                        label = { Text("Account name") },
+                        label = { Text(stringResource(R.string.browser_settings_fingerprint_name)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
                     )
@@ -141,10 +141,10 @@ fun FingerprintAccountsSection(tabPool: BrowserTabPool) {
                     }
                     newId = ""
                     showAdd = false
-                }) { Text("Create") }
+                }) { Text(stringResource(R.string.browser_settings_fingerprint_create)) }
             },
             dismissButton = {
-                MinisTextButton(onClick = { newId = ""; showAdd = false }) { Text("Cancel") }
+                MinisTextButton(onClick = { newId = ""; showAdd = false }) { Text(stringResource(R.string.common_cancel)) }
             },
         )
     }
@@ -181,7 +181,7 @@ private fun FingerprintRow(
         }
         if (onDelete != null) {
             IconButton(onClick = onDelete) {
-                Icon(Icons.Filled.Delete, contentDescription = "Delete $label")
+                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.browser_settings_fingerprint_delete, label))
             }
         }
     }

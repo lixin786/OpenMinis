@@ -18,7 +18,10 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import androidx.annotation.RequiresApi
+import androidx.webkit.UserAgentMetadata
+import androidx.webkit.WebSettingsCompat
 import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -256,6 +259,8 @@ class BrowserUseManager(
         // [T-android-browser-fingerprint] 在文档开始执行前注入指纹脚本
         fingerprintProfile?.let { fp ->
             webView.applyFingerprintAtDocumentStart(fp)
+            // [T-fp-f2/f3] WebView 层的另一半：UA-CH 元数据 + X-Requested-With 剥离
+            webView.applyFingerprintWebViewSettings(fp)
         }
         webView.addJavascriptInterface(jsBridge, "__minis__")
         setupWebViewClient()
@@ -2109,5 +2114,67 @@ private fun WebView.applyFingerprintAtDocumentStart(fp: BrowserFingerprintProfil
         WebViewCompat.addDocumentStartJavaScript(this, js, setOf("*"))
     }.onFailure {
         Log.w("BrowserFingerprint", "addDocumentStartJavaScript failed: ${it.message}")
+    }
+}
+
+/**
+ * [T-fp-f2] A UA string that claims Chrome/134 is not enough on its own: the
+ * request's client hints must agree with it. Measured on-device, the build sent
+ * no Sec-CH-UA at all, which contradicts the UA it advertises. Setting the
+ * metadata from the same profile keeps UA string and hints coherent.
+ *
+ * [T-fp-f3] Android WebView adds `X-Requested-With: <package name>` to requests
+ * by default — nothing in this app sets it, yet it leaked the host package
+ * (com.openminis.app.fp) to every origin. An empty allow-list disables it.
+ */
+@RequiresApi(Build.VERSION_CODES.O)
+private fun WebView.applyFingerprintWebViewSettings(fp: BrowserFingerprintProfile) {
+    val major = BrowserFingerprintInjector.FpUaMetadata.chromeMajor(fp.userAgent)
+    val fullVersion = BrowserFingerprintInjector.FpUaMetadata.fullVersion(major)
+    val uaChSupported = WebViewFeature.isFeatureSupported(WebViewFeature.USER_AGENT_METADATA)
+    val rwhSupported = WebViewFeature.isFeatureSupported(WebViewFeature.REQUESTED_WITH_HEADER_ALLOW_LIST)
+    if (!uaChSupported) Log.i("BrowserFingerprint", "WebView lacks USER_AGENT_METADATA (needs a newer WebView); Sec-CH-UA headers stay unset")
+    if (!rwhSupported) Log.i("BrowserFingerprint", "WebView lacks REQUESTED_WITH_HEADER_ALLOW_LIST; X-Requested-With cannot be suppressed on this build")
+    runCatching {
+        if (uaChSupported) {
+            val brands = BrowserFingerprintInjector.FpUaMetadata.brands(major).map { (brand, version) ->
+                UserAgentMetadata.BrandVersion.Builder()
+                    .setBrand(brand)
+                    .setMajorVersion(version)
+                    .setFullVersion(if (brand == "Not A(Brand") "24.0.0.0" else fullVersion)
+                    .build()
+            }
+            val meta = UserAgentMetadata.Builder()
+                .setBrandVersionList(brands)
+                .setFullVersion(fullVersion)
+                .setPlatform("Android")
+                .setPlatformVersion(fp.androidVersion + ".0.0")
+                .setArchitecture("")
+                .setModel(fp.deviceModel)
+                .setMobile(true)
+                .setBitness(UserAgentMetadata.BITNESS_DEFAULT)
+                .setWow64(false)
+                .build()
+            WebSettingsCompat.setUserAgentMetadata(settings, meta)
+            Log.i("BrowserFingerprint", "UA-CH metadata set (brands=${brands.size}, platform=Android ${fp.androidVersion}, model=${fp.deviceModel})")
+        }
+    }.onFailure {
+        Log.w("BrowserFingerprint", "setUserAgentMetadata failed: ${it.message}")
+    }
+    runCatching {
+        if (rwhSupported) {
+            // An EMPTY allow-list is not honored by every WebView provider: on
+            // WebView 109 it still sent the header everywhere (measured: the
+            // document request carried X-Requested-With: com.openminis.app.fp).
+            // A non-empty list that no browsing target can match suppresses the
+            // header on both old (legacy-on-empty) and new providers, while
+            // still leaving it available to the app's own asset origin.
+            WebSettingsCompat.setRequestedWithHeaderOriginAllowList(
+                settings, setOf("https://appassets.androidplatform.net")
+            )
+            Log.i("BrowserFingerprint", "X-Requested-With restricted to the app asset origin (all browsed origins excluded)")
+        }
+    }.onFailure {
+        Log.w("BrowserFingerprint", "setRequestedWithHeaderOriginAllowList failed: ${it.message}")
     }
 }

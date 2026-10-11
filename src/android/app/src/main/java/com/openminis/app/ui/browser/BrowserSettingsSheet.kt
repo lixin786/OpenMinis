@@ -496,7 +496,7 @@ private fun ViewportSection(
     onPreset: (Int, Int) -> Unit,
 ) {
     Text(
-        "Web Viewport",
+        stringResource(R.string.browser_settings_viewport),
         style = MaterialTheme.typography.titleSmall,
         fontWeight = FontWeight.SemiBold,
     )
@@ -514,7 +514,7 @@ private fun ViewportSection(
             onClick = onSelectDefault,
         )
         Column(modifier = Modifier.weight(1f)) {
-            Text("Default (auto by UA)", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.browser_settings_viewport_default), style = MaterialTheme.typography.bodyMedium)
             val (uaW, uaH) = selectedProfile.viewportSize
             Text(
                 "${uaW} × $uaH",
@@ -536,9 +536,9 @@ private fun ViewportSection(
             onClick = onSelectCustom,
         )
         Column(modifier = Modifier.weight(1f)) {
-            Text("Custom", style = MaterialTheme.typography.bodyMedium)
+            Text(stringResource(R.string.browser_settings_ua_custom), style = MaterialTheme.typography.bodyMedium)
             Text(
-                "Set your own width × height",
+                stringResource(R.string.browser_settings_viewport_custom_desc),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -555,7 +555,7 @@ private fun ViewportSection(
             OutlinedTextField(
                 value = widthText,
                 onValueChange = onWidthChange,
-                label = { Text("Width") },
+                label = { Text(stringResource(R.string.browser_settings_viewport_width)) },
                 singleLine = true,
                 // [T-android-browser-settings-keyboard-overlap] focus →
                 // scroll-into-view so the soft keyboard doesn't cover
@@ -570,7 +570,7 @@ private fun ViewportSection(
             OutlinedTextField(
                 value = heightText,
                 onValueChange = onHeightChange,
-                label = { Text("Height") },
+                label = { Text(stringResource(R.string.browser_settings_viewport_height)) },
                 singleLine = true,
                 // [T-android-browser-settings-keyboard-overlap] focus →
                 // scroll-into-view; mirrors the Width field.
@@ -583,15 +583,15 @@ private fun ViewportSection(
         }
 
         // UA mismatch banner — same 768px breakpoint as iOS.
-        val warning = uaMismatchWarning(selectedProfile, widthText)
-        if (warning != null) {
+        val warningRes = uaMismatchWarningRes(selectedProfile, widthText)
+        if (warningRes != null) {
             Spacer(Modifier.height(8.dp))
-            UaMismatchBanner(warning)
+            UaMismatchBanner(stringResource(warningRes, VIEWPORT_UA_BREAKPOINT))
         }
 
         Spacer(Modifier.height(12.dp))
         Text(
-            "Quick Set",
+            stringResource(R.string.browser_settings_viewport_quick_set),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -647,27 +647,28 @@ private fun ViewportSection(
     val (resW, resH) = tabPool.resolvedViewportSize()
     Text(
         if (isCustomActive) {
-            "Using custom viewport $resW × $resH. Tap Default to revert to the UA default."
+            stringResource(R.string.browser_settings_viewport_using_custom, resW.toString(), resH.toString())
         } else {
-            "Using UA default $resW × $resH. Set a custom size to override."
+            stringResource(R.string.browser_settings_viewport_using_default, resW.toString(), resH.toString())
         },
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
 }
 
-private fun uaMismatchWarning(profile: UserAgentProfile, widthText: String): String? {
+@androidx.annotation.StringRes
+private fun uaMismatchWarningRes(profile: UserAgentProfile, widthText: String): Int? {
     val width = widthText.toIntOrNull() ?: return null
     if (width <= 0) return null
     return when (profile) {
         UserAgentProfile.MOBILE_CHROME, UserAgentProfile.CUSTOM -> {
             if (width >= VIEWPORT_UA_BREAKPOINT) {
-                "Viewport ≥${VIEWPORT_UA_BREAKPOINT}px while UA is Mobile — sites may serve a desktop layout that renders awkwardly. Consider switching UA to Desktop."
+                R.string.browser_settings_ua_mismatch_mobile
             } else null
         }
         UserAgentProfile.DESKTOP_CHROME -> {
             if (width < VIEWPORT_UA_BREAKPOINT) {
-                "Viewport <${VIEWPORT_UA_BREAKPOINT}px while UA is Desktop — sites may serve a mobile layout that renders awkwardly. Consider switching UA to Mobile."
+                R.string.browser_settings_ua_mismatch_desktop
             } else null
         }
     }
