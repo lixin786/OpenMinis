@@ -184,9 +184,44 @@ class BrowserTabPool(private val context: Context) : BrowserTabPoolRegistry.Regi
     // [T-android-browser-fingerprint] 当前浏览器账号的指纹档案 id（null = 不启用）
     private val _fingerprintId = MutableStateFlow<String?>(null)
     val currentFingerprintId: StateFlow<String?> = _fingerprintId.asStateFlow()
+    /**
+     * [T-fp-v7-global-account] The selection is authoritative in
+     * SharedPreferences, not per pool. Several pools exist (session-list UI,
+     * per-chat/agent, the app-scoped `minis-browser-use` one, per-session CLI
+     * pools) and each used to snapshot this value once in `init` - so a pool
+     * created before the user picked an account silently stayed unspoofed while
+     * another pool was spoofed. Measured as AUDIT2's two identities (letters
+     * id=63/73/75). Reading live keeps every pool in agreement; tabs that
+     * already exist keep the identity they were created with, because swapping a
+     * live tab's fingerprint is itself a detectable event.
+     */
     private var fingerprintId: String?
-        get() = _fingerprintId.value
-        set(value) { _fingerprintId.value = value }
+        get() = runCatching {
+            context.getSharedPreferences("browser_prefs", Context.MODE_PRIVATE)
+                .getString(PREF_FINGERPRINT_ID, null)
+        }.getOrNull()
+        set(value) {
+            _fingerprintId.value = value
+            runCatching {
+                context.getSharedPreferences("browser_prefs", Context.MODE_PRIVATE)
+                    .edit().putString(PREF_FINGERPRINT_ID, value).apply()
+            }
+        }
+
+    /**
+     * [T-fp-v7-live-identity] The profile a NEW tab should run with, resolved
+     * from the live selection and with the UA's engine major clamped to the real
+     * WebView (AUDIT2 P0-3). Shared by both tab-creation paths: a `window.open()`
+     * tab used to get no profile at all, which was a straight leak path.
+     */
+    private fun currentFingerprintProfile(): BrowserFingerprintProfile? =
+        fingerprintId?.let { fid ->
+            context.applicationContext?.let { ctx ->
+                BrowserFingerprintRegistry.getOrCreate(ctx, fid, fid).let {
+                    it.copy(userAgent = BrowserWebViewIdentity.withEngineMajor(it.userAgent, ctx))
+                }
+            }
+        }
 
     /**
      * [T-android-browser-fingerprint] Select the fingerprint identity for
@@ -198,20 +233,13 @@ class BrowserTabPool(private val context: Context) : BrowserTabPoolRegistry.Regi
      * Persisted so the choice survives a process restart.
      */
     fun setFingerprintAccount(id: String?) {
-        _fingerprintId.value = id
-        runCatching {
-            context.getSharedPreferences("browser_prefs", Context.MODE_PRIVATE)
-                .edit().putString(PREF_FINGERPRINT_ID, id).apply()
-        }
+        fingerprintId = id
     }
 
-    /** Restore the persisted selection (called from init). */
+    /** Publish the persisted selection into the flow (called from init; the
+     *  value itself is read live, see [fingerprintId]). */
     private fun restoreFingerprintId() {
-        runCatching {
-            val saved = context.getSharedPreferences("browser_prefs", Context.MODE_PRIVATE)
-                .getString(PREF_FINGERPRINT_ID, null)
-            if (saved != null) _fingerprintId.value = saved
-        }
+        _fingerprintId.value = fingerprintId
     }
 
     private var sessionId: String? = null
@@ -1224,11 +1252,8 @@ class BrowserTabPool(private val context: Context) : BrowserTabPoolRegistry.Regi
         val id = nextTabId++
         val webView = WebView(context)
         // [T-android-browser-fingerprint] 当前账号的指纹档案（null = 不启用伪装）
-        val fpProfile = fingerprintId?.let { fid ->
-            context.applicationContext?.let { ctx ->
-                BrowserFingerprintRegistry.getOrCreate(ctx, fid, fid)
-            }
-        }
+        // [T-fp-v7-live-identity] resolved live (not from an init-time snapshot)
+        val fpProfile = currentFingerprintProfile()
         // [T-android-minis-url-session-scope] Hand the manager a LIVE reader of
         // this pool's session id (set later via setSession) plus a context, so
         // `minis://workspace/...` resolves against this chat's sandbox instead
@@ -1412,13 +1437,19 @@ class BrowserTabPool(private val context: Context) : BrowserTabPoolRegistry.Regi
         }
         val id = nextTabId++
         val newWebView = WebView(context)
+        // [T-fp-v7-live-identity] window.open() tabs must carry the same identity
+        // as tabs created through createTab(); they used to get none at all.
+        val fpProfile = currentFingerprintProfile()
         val manager = BrowserUseManager(
             newWebView,
             userAgentProfile,
             sessionIdProvider = { sessionId },
             appContext = context.applicationContext,
+            fingerprintProfile = fpProfile,
         )
-        if (userAgentProfile == UserAgentProfile.CUSTOM && !customUserAgentString.isNullOrEmpty()) {
+        if (fpProfile != null) {
+            manager.setUserAgent(UserAgentProfile.CUSTOM, fpProfile.userAgent)
+        } else if (userAgentProfile == UserAgentProfile.CUSTOM && !customUserAgentString.isNullOrEmpty()) {
             manager.setUserAgent(userAgentProfile, customUserAgentString)
         }
         val (vpW, vpH) = resolvedViewportSize()

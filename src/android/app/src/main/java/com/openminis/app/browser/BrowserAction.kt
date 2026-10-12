@@ -1,5 +1,7 @@
 package com.openminis.app.browser
 
+import android.content.Context
+
 /**
  * All browser actions available to the agent, mirroring iOS BrowserAction.
  */
@@ -83,12 +85,21 @@ enum class UserAgentProfile(val value: String) {
     DESKTOP_CHROME("desktop_chrome"),
     CUSTOM("custom");
 
-    val userAgentString: String?
-        get() = when (this) {
-            MOBILE_CHROME -> "Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Mobile Safari/537.36"
-            DESKTOP_CHROME -> "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36"
-            CUSTOM -> null
-        }
+    /**
+     * [T-fp-v7-ua-identity] Context-aware since v7. The mobile preset used to
+     * hardcode `Android 14; Pixel 8 ... Chrome/134.0.0.0`; with no fingerprint
+     * account selected that made every tab claim to be a Pixel 8 while the
+     * platform, timezone, locale, core count and GPU were the real device's -
+     * the cross-checkable contradiction AUDIT2 caught (letters id=73/75).
+     * It now reports the device's own reduced WebView UA with the real engine
+     * major; the desktop preset keeps its shape but tracks the same major so it
+     * can never advertise an engine older than the one rendering the page.
+     */
+    fun userAgentString(context: Context?): String? = when (this) {
+        MOBILE_CHROME -> BrowserWebViewIdentity.mobileUserAgent(context)
+        DESKTOP_CHROME -> BrowserWebViewIdentity.desktopUserAgent(context)
+        CUSTOM -> null
+    }
 
     val displayName: String
         get() = when (this) {

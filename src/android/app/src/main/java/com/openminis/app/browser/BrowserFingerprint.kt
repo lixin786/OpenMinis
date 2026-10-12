@@ -130,24 +130,34 @@ object BrowserFingerprintRegistry {
     // [T-fp-f7] No artificial width jitter any more: the old `+ ((h/13)%3)*4`
     // produced 416/420px widths that no real phone reports.
     private data class Device(
-        val ua: String, val platform: String, val oscpu: String,
+        // [T-fp-v7-ua-identity] No per-device UA string any more: since Chrome 110
+        // the real Android UA is frozen (`Android 10; K`, no model), so the UA is
+        // built from the live engine major and the device story lives in UA-CH
+        // (model/platformVersion) + GPU/screen - exactly as on real hardware.
+        val platform: String, val oscpu: String,
         val gpuVendor: String, val gpuRenderer: String,
         val cores: Int, val mem: Int, val touch: Int,
         val w: Int, val h: Int, val dpr: Double,
         val model: String, val androidVer: String,
     )
 
+    // [T-fp-v7-pool] Rebuilt per AUDIT2 (P0-2): every entry is a REAL
+    // SoC/GPU/cores/RAM/screen/DPR/Android-version pairing, and the CSS
+    // viewport+DPR values are the ones the corresponding hardware reports to
+    // WebView (screen-viewport references). The two Chinese models that used to
+    // sit here were dropped because their CSS viewports could not be sourced;
+    // re-add them once measured on real hardware.
     private val POOL = listOf(
-        Device("Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Mobile Safari/537.36",
-            "Linux armv8l", "Linux armv8l", "Qualcomm", "Adreno (TM) 740", 8, 8, 5, 412, 915, 2.625, "Pixel 8", "14"),
-        Device("Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Mobile Safari/537.36",
-            "Linux armv8l", "Linux armv8l", "Qualcomm", "Adreno (TM) 740", 8, 8, 5, 384, 824, 3.75, "SM-S918B", "14"),
-        Device("Mozilla/5.0 (Linux; Android 14; moto g84 5G) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Mobile Safari/537.36",
-            "Linux armv8l", "Linux armv8l", "Qualcomm", "Adreno (TM) 644", 8, 6, 5, 393, 851, 2.75, "moto g84 5G", "14"),
-        Device("Mozilla/5.0 (Linux; Android 13; V2225) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Mobile Safari/537.36",
-            "Linux armv8l", "Linux armv8l", "ARM", "Mali-G68", 8, 8, 5, 360, 806, 2.0, "V2225", "13"),
-        Device("Mozilla/5.0 (Linux; Android 14; 2306EPN60G) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Mobile Safari/537.36",
-            "Linux armv8l", "Linux armv8l", "ARM", "Mali-G610", 8, 12, 5, 393, 873, 2.75, "2306EPN60G", "14"),
+        // Google Pixel 8 - Tensor G3 (9 cores) / Immortalis-G715, 8 GB, 1080x2400.
+        Device("Linux armv8l", "Linux armv8l", "Google", "Mali-G715", 9, 8, 5, 412, 915, 2.625, "Pixel 8", "14"),
+        // Google Pixel 8a - same SoC class, 8 GB, 1080x2400.
+        Device("Linux armv8l", "Linux armv8l", "Google", "Mali-G715", 9, 8, 5, 412, 915, 2.625, "Pixel 8a", "14"),
+        // Samsung Galaxy S23 (SM-S911B) - Snapdragon 8 Gen 2 / Adreno 740, 8 GB, 1080x2340.
+        Device("Linux armv8l", "Linux armv8l", "Qualcomm", "Adreno (TM) 740", 8, 8, 5, 360, 780, 3.0, "SM-S911B", "13"),
+        // Samsung Galaxy A55 5G (SM-A556B) - Exynos 1480 / Xclipse 530, 8 GB, 1080x2340.
+        Device("Linux armv8l", "Linux armv8l", "Samsung", "Xclipse 530", 8, 8, 5, 412, 892, 2.625, "SM-A556B", "14"),
+        // Samsung Galaxy A36 5G (SM-A366B) - Exynos 1580 / Xclipse 540, 8 GB, 1080x2408.
+        Device("Linux armv8l", "Linux armv8l", "Samsung", "Xclipse 540", 8, 8, 5, 412, 918, 2.625, "SM-A366B", "15"),
     )
 
     // Common residential timezone/locale pairs, so a profile looks like a real
@@ -221,13 +231,13 @@ object BrowserFingerprintRegistry {
     @Synchronized
     fun getOrCreate(ctx: Context, id: String, label: String = id): BrowserFingerprintProfile {
         load(ctx)[id]?.let { return it }
-        val p = generate(id, label)
+        val p = generate(id, label, ctx)
         upsert(ctx, p)
         return p
     }
 
     /** Deterministically draw a profile for the given id. */
-    fun generate(id: String, label: String = id): BrowserFingerprintProfile {
+    fun generate(id: String, label: String = id, context: Context? = null): BrowserFingerprintProfile {
         val h = stableHash(id)
         val dev = POOL[(h % POOL.size).toInt()]
         val loc = LOCALES[((h / 7) % LOCALES.size).toInt()]
@@ -238,7 +248,8 @@ object BrowserFingerprintRegistry {
         }
         return BrowserFingerprintProfile(
             id = id, label = label,
-            userAgent = dev.ua, platform = dev.platform, oscpu = dev.oscpu,
+            userAgent = BrowserWebViewIdentity.mobileUserAgent(context),
+            platform = dev.platform, oscpu = dev.oscpu,
             screenWidth = dev.w, screenHeight = dev.h,
             availWidth = dev.w, availHeight = dev.h - 48,
             colorDepth = 24, pixelDepth = 24,

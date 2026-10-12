@@ -130,7 +130,9 @@ class BrowserUseManager(
                 builtInZoomControls = false
                 setSupportMultipleWindows(true)
                 mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
-                val ua = customUA ?: profile.userAgentString
+                // webView.context, not appContext: configureWebView is a static
+                // helper and the WebView always carries a usable context.
+                val ua = customUA ?: profile.userAgentString(webView.context)
                 if (ua != null) userAgentString = ua
             }
             // T-android-webview-v3-port: enable first- + third-party cookies.
@@ -1411,7 +1413,7 @@ class BrowserUseManager(
     fun setUserAgent(profile: UserAgentProfile, customUA: String? = null) {
         currentProfile = profile
         val ua = if (profile == UserAgentProfile.CUSTOM && !customUA.isNullOrEmpty()) customUA
-            else profile.userAgentString
+            else profile.userAgentString(appContext)
         if (ua != null) {
             webView.settings.userAgentString = ua
         }
@@ -1474,7 +1476,7 @@ class BrowserUseManager(
     private suspend fun setUserAgent(profile: UserAgentProfile?): BrowserActionResult {
         val newProfile = profile ?: UserAgentProfile.MOBILE_CHROME
         currentProfile = newProfile
-        val ua = newProfile.userAgentString
+        val ua = newProfile.userAgentString(appContext)
         // Every WebView method must be called on the main thread, but the
         // offload handler's `runBlocking { ... execute(...) }` dispatches on
         // a worker. `applyViewport(...)` measures/layouts the detached

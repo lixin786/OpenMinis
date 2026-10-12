@@ -49,6 +49,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import android.content.Context
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -168,7 +169,7 @@ fun BrowserSettingsSheet(
                     UserAgentProfile.DESKTOP_CHROME -> R.string.browser_settings_ua_desktop_chrome
                     UserAgentProfile.CUSTOM -> R.string.browser_settings_ua_custom
                 })
-                val uaSubtitle = displayUA(profile, customUA, notSetPlaceholder)
+                val uaSubtitle = displayUA(profile, customUA, notSetPlaceholder, context)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -451,10 +452,15 @@ private enum class ViewportMode { DEFAULT, CUSTOM }
 /** UA list subtitle: full UA string in monospace, or "Not set" when the
  *  Custom slot is empty. Mirrors the iOS sheet which shows the full UA below
  *  each radio so the user can verify exactly what's being sent. */
-private fun displayUA(profile: UserAgentProfile, customUA: String, notSetPlaceholder: String): String =
+private fun displayUA(
+    profile: UserAgentProfile,
+    customUA: String,
+    notSetPlaceholder: String,
+    context: Context,
+): String =
     when (profile) {
         UserAgentProfile.CUSTOM -> customUA.ifBlank { notSetPlaceholder }
-        else -> profile.userAgentString.orEmpty()
+        else -> profile.userAgentString(context).orEmpty()
     }
 
 // ── Viewport ──────────────────────────────────────────────────────────────
