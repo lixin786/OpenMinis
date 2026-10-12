@@ -85,11 +85,16 @@ object BrowserFingerprintInjector {
         fun chromeMajor(ua: String): String =
             Regex("Chrome/(\\d+)").find(ua)?.groupValues?.get(1) ?: "134"
 
-        /** Chrome-style brand list for the given major (grease entry first). */
+        /**
+         * [T-fp-v8-ch-brands] Brand list exactly as real Chrome reports it,
+         * captured from Chrome 113 on Android 14 during the AUDIT3 control run:
+         * order is `Google Chrome, Chromium, <grease>`, and the greased brand is
+         * spelled `Not-A.Brand` (the previous "Not A(Brand" was invented).
+         */
         fun brands(major: String): List<Pair<String, String>> = listOf(
-            "Not A(Brand" to "24",
-            "Chromium" to major,
             "Google Chrome" to major,
+            "Chromium" to major,
+            "Not-A.Brand" to "24",
         )
 
         fun fullVersion(major: String): String = "$major.0.0.0"
@@ -242,14 +247,14 @@ function installUaCh(w){
     var nav = w.navigator;
     var major = CHROME_MAJOR;
     var brands = [
-      { brand: 'Not A(Brand', version: '24' },
+      { brand: 'Google Chrome', version: major },
       { brand: 'Chromium', version: major },
-      { brand: 'Google Chrome', version: major }
+      { brand: 'Not-A.Brand', version: '24' }
     ];
     var full = [
-      { brand: 'Not A(Brand', version: '24.0.0.0' },
+      { brand: 'Google Chrome', version: major + '.0.0.0' },
       { brand: 'Chromium', version: major + '.0.0.0' },
-      { brand: 'Google Chrome', version: major + '.0.0.0' }
+      { brand: 'Not-A.Brand', version: '24.0.0.0' }
     ];
     var uad = {
       brands: brands,
@@ -419,16 +424,10 @@ function installChrome(w){
   try {
     if (w.chrome) return;
     var t0 = Date.now();
+    // [T-fp-v8-chrome-stub] Real Chrome on Android exposes exactly
+    // loadTimes + csi (control capture, Chrome 113 / Android 14). The stub
+    // used to add `app` and `runtime`, which no Android Chrome has.
     def(w, 'chrome', {
-      app: {
-        isInstalled: false,
-        InstallState: { DISABLED: 'disabled', INSTALLED: 'installed', NOT_INSTALLED: 'not_installed' },
-        RunningState: { CANNOT_RUN: 'cannot_run', READY_TO_RUN: 'ready_to_run', RUNNING: 'running' },
-        getDetails: function(){ return null; },
-        getIsInstalled: function(){ return false; },
-        installState: function(){ return 'not_installed'; },
-        runningState: function(){ return 'cannot_run'; }
-      },
       csi: function(){ return { onloadT: t0, startE: t0, pageT: 1000 + (SEED % 500), tran: 15 }; },
       loadTimes: function(){
         return { requestTime: t0 / 1000, startLoadTime: t0 / 1000, commitLoadTime: t0 / 1000,
@@ -436,8 +435,7 @@ function installChrome(w){
           firstPaintAfterLoadTime: 0, navigationType: 'Other',
           wasFetchedViaSpdy: true, wasNpnNegotiated: true, npnNegotiatedProtocol: 'h2',
           wasAlternateProtocolAvailable: false, connectionInfo: 'h2' };
-      },
-      runtime: {}
+      }
     });
   } catch(e){}
 }

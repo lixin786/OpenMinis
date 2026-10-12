@@ -149,15 +149,21 @@ object BrowserFingerprintRegistry {
     // re-add them once measured on real hardware.
     private val POOL = listOf(
         // Google Pixel 8 - Tensor G3 (9 cores) / Immortalis-G715, 8 GB, 1080x2400.
-        Device("Linux armv8l", "Linux armv8l", "Google", "Mali-G715", 9, 8, 5, 412, 915, 2.625, "Pixel 8", "14"),
+        // [T-fp-v8-gpu-strings] Mali's unmasked vendor on Android Chrome is "ARM"
+        // (AUDIT3 read our previous "Google" back, which is how we knew the
+        // override ran at all - a real Mali device reports ARM).
+        Device("Linux armv8l", "Linux armv8l", "ARM", "Mali-G715", 9, 8, 5, 412, 915, 2.625, "Pixel 8", "14"),
         // Google Pixel 8a - same SoC class, 8 GB, 1080x2400.
-        Device("Linux armv8l", "Linux armv8l", "Google", "Mali-G715", 9, 8, 5, 412, 915, 2.625, "Pixel 8a", "14"),
+        Device("Linux armv8l", "Linux armv8l", "ARM", "Mali-G715", 9, 8, 5, 412, 915, 2.625, "Pixel 8a", "14"),
         // Samsung Galaxy S23 (SM-S911B) - Snapdragon 8 Gen 2 / Adreno 740, 8 GB, 1080x2340.
         Device("Linux armv8l", "Linux armv8l", "Qualcomm", "Adreno (TM) 740", 8, 8, 5, 360, 780, 3.0, "SM-S911B", "13"),
-        // Samsung Galaxy A55 5G (SM-A556B) - Exynos 1480 / Xclipse 530, 8 GB, 1080x2340.
-        Device("Linux armv8l", "Linux armv8l", "Samsung", "Xclipse 530", 8, 8, 5, 412, 892, 2.625, "SM-A556B", "14"),
-        // Samsung Galaxy A36 5G (SM-A366B) - Exynos 1580 / Xclipse 540, 8 GB, 1080x2408.
-        Device("Linux armv8l", "Linux armv8l", "Samsung", "Xclipse 540", 8, 8, 5, 412, 918, 2.625, "SM-A366B", "15"),
+        // Samsung Galaxy A54 5G (SM-A546B) - Exynos 1380 / Mali-G68, 8 GB, 1080x2340.
+        // (Replaces the A55/A36 Exynos-Xclipse entries: Xclipse renderer strings
+        // are not verifiable from public sources, and an unverifiable value is
+        // exactly what AUDIT2 was about.)
+        Device("Linux armv8l", "Linux armv8l", "ARM", "Mali-G68", 8, 8, 5, 412, 892, 2.625, "SM-A546B", "13"),
+        // OnePlus Nord 4 (CPH2621) - Snapdragon 7+ Gen 3 / Adreno 732, 8 GB, 1080x2772.
+        Device("Linux armv8l", "Linux armv8l", "Qualcomm", "Adreno (TM) 732", 8, 8, 5, 360, 924, 3.0, "CPH2621", "14"),
     )
 
     // Common residential timezone/locale pairs, so a profile looks like a real

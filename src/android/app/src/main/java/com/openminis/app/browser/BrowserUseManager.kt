@@ -2143,7 +2143,7 @@ private fun WebView.applyFingerprintWebViewSettings(fp: BrowserFingerprintProfil
                 UserAgentMetadata.BrandVersion.Builder()
                     .setBrand(brand)
                     .setMajorVersion(version)
-                    .setFullVersion(if (brand == "Not A(Brand") "24.0.0.0" else fullVersion)
+                    .setFullVersion(if (brand == "Not-A.Brand") "24.0.0.0" else fullVersion)
                     .build()
             }
             val meta = UserAgentMetadata.Builder()
